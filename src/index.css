@@ -4,9 +4,17 @@
 
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
+  margin: 0;
+  overflow: hidden;
+  height: 100svh;
+  min-height: 100svh;
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100svh;
+  height: 100svh;
+  overflow: hidden;
 }
 

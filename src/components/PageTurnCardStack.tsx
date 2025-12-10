@@ -243,7 +243,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
 
   return (
     <div
-      className="relative flex h-screen w-screen items-center justify-center overflow-hidden"
+      className="relative flex h-[100svh] min-h-[100svh] w-screen items-center justify-center overflow-hidden"
       style={{ perspective: 1400 }}
     >
       {visibleCards.length === 0 ? (
