@@ -10,6 +10,7 @@ import { analyzeUserPreferenceFromSwipes } from "../lib/analyzePreference";
 import { BalloonAnimation } from "./BalloonAnimation";
 import { LastPage } from "./LastPage";
 import { getSupabaseClient } from "../lib/supabaseClient";
+import { Tutorial, isTutorialCompleted } from "./Tutorial";
 
 export type SwipeCard = {
   id: string;
@@ -218,17 +219,29 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
   const identity = useDeviceSession();
   const initialCardsCount = useRef(cards.length);
   
-  // 풍선 애니메이션 상태
-  const [balloonAnimation, setBalloonAnimation] = useState<{
+  // 풍선 애니메이션 상태 (여러 개 동시 표시 가능)
+  const [balloonAnimations, setBalloonAnimations] = useState<Array<{
+    id: string;
     type: 'like' | 'nope';
     isVisible: boolean;
     startX: number;
-  } | null>(null);
+  }>>([]);
+
+  // 튜토리얼 상태
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
 
   useEffect(() => {
     setStack(cards);
     initialCardsCount.current = cards.length;
   }, [cards]);
+
+  // 튜토리얼 초기화
+  useEffect(() => {
+    if (!isTutorialCompleted()) {
+      setShowTutorial(true);
+    }
+  }, []);
 
   const handleCardSelect = async (cardIdOrCard: string | SwipeCard) => {
     // 카드 객체가 전달된 경우
@@ -295,16 +308,31 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
   const handleSwipeStart = (direction: SwipeDirection) => {
     // 랜덤 X 위치 생성 (화면 너비의 20%~80% 사이)
     const randomX = 20 + Math.random() * 60;
+    const balloonId = `balloon-${Date.now()}-${Math.random()}`;
     
-    setBalloonAnimation({
-      type: direction === 'right' ? 'like' : 'nope',
-      isVisible: true,
-      startX: randomX,
-    });
+    // 새 풍선 추가
+    setBalloonAnimations((prev) => [
+      ...prev,
+      {
+        id: balloonId,
+        type: direction === 'right' ? 'like' : 'nope',
+        isVisible: true,
+        startX: randomX,
+      },
+    ]);
 
-    // 2초 후 애니메이션 숨김 (더 오래 보이도록)
+    // 2초 후 해당 풍선 숨김
     setTimeout(() => {
-      setBalloonAnimation((prev) => prev ? { ...prev, isVisible: false } : null);
+      setBalloonAnimations((prev) =>
+        prev.map((balloon) =>
+          balloon.id === balloonId ? { ...balloon, isVisible: false } : balloon
+        )
+      );
+      
+      // 숨김 후 완전히 제거 (애니메이션 완료 후)
+      setTimeout(() => {
+        setBalloonAnimations((prev) => prev.filter((balloon) => balloon.id !== balloonId));
+      }, 300);
     }, 2000);
   };
 
@@ -367,7 +395,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
       >
         {/* 우측 상단 카운터 */}
         {visibleCards.length > 0 && (
-          <div className="absolute right-4 top-4 z-50 text-white/40 text-sm font-medium">
+          <div className="absolute right-4 top-4 z-50 text-white text-sm font-semibold drop-shadow-lg">
             {currentIndex}/{totalCards}
           </div>
         )}
@@ -421,14 +449,15 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
             .reverse()}
         </AnimatePresence>
 
-        {/* 풍선 애니메이션 */}
-        {balloonAnimation && (
+        {/* 풍선 애니메이션 (여러 개 동시 표시 가능) */}
+        {balloonAnimations.map((balloon) => (
           <BalloonAnimation
-            type={balloonAnimation.type}
-            isVisible={balloonAnimation.isVisible}
-            startX={balloonAnimation.startX}
+            key={balloon.id}
+            type={balloon.type}
+            isVisible={balloon.isVisible}
+            startX={balloon.startX}
           />
-        )}
+        ))}
 
         {/* 우측 하단 액션 버튼 (카드 스택 밖에 고정) */}
         {visibleCards.length > 0 && visibleCards[0] && (
@@ -457,6 +486,22 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
         isOpen={profileOpen}
         onClose={() => setProfileOpen(false)}
         onCardSelect={handleCardSelect}
+      />
+
+      {/* Tutorial */}
+      <Tutorial
+        isVisible={showTutorial}
+        onComplete={() => setShowTutorial(false)}
+        currentStep={tutorialStep}
+        onStepChange={setTutorialStep}
+        sampleCard={visibleCards.length > 0 ? visibleCards[0] : undefined}
+        highlightElement={
+          showTutorial
+            ? tutorialStep === 3
+              ? { type: 'counter', position: { top: 16, right: 16, width: 60, height: 24 } }
+              : null
+            : null
+        }
       />
     </>
   );
