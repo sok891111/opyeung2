@@ -13,3 +13,7 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export const getSupabaseClient = () => client;
 
+// Direct export for convenience
+export const supabase = client;
+
+

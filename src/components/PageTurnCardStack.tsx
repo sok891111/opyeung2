@@ -3,6 +3,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDeviceSession } from "../hooks/useDeviceSession";
 import { recordSwipe } from "../lib/supabaseSwipes";
 import { SwipeDirection } from "../types/swipe";
+import { CommentsPanel } from "./CommentsPanel";
+import { CardActionButtons } from "./CardActionButtons";
+import { ProfilePanel } from "./ProfilePanel";
+import { analyzeUserPreferenceFromSwipes } from "../lib/analyzePreference";
+import { BalloonAnimation } from "./BalloonAnimation";
+import { LastPage } from "./LastPage";
 
 export type SwipeCard = {
   id: string;
@@ -22,9 +28,10 @@ const MAX_ROTATE_Z = 8;
 type PageTurnCardProps = {
   card: SwipeCard;
   onSwiped: (direction: SwipeDirection, id: string) => void;
+  onSwipeStart?: (direction: SwipeDirection) => void;
 };
 
-const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped }) => {
+const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped, onSwipeStart }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [cardWidth, setCardWidth] = useState(320);
   const pressTimer = useRef<number | null>(null);
@@ -72,6 +79,8 @@ const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped }) => {
     });
 
   const flyOut = (direction: SwipeDirection, velocity: number) => {
+    // 애니메이션 트리거
+    onSwipeStart?.(direction);
     onSwiped(direction, card.id);
     const exitX = direction === "right" ? cardWidth * 1.2 : -cardWidth * 1.2;
     animate(x, exitX, {
@@ -108,7 +117,7 @@ const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped }) => {
       pressTimer.current = window.setTimeout(() => {
         longPressTriggered.current = true;
         window.open(card.instagramUrl, "_blank", "noopener,noreferrer");
-      }, 2000);
+      }, 1000); // 1초로 변경
     }
   };
 
@@ -158,13 +167,8 @@ const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped }) => {
             </span>
           ) : null}
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-sm">
-          <div className="flex items-center gap-2 text-lg font-semibold">
-            <span>{card.name}</span>
-            <span className="text-white/80">{card.age}</span>
-            <span className="text-xs uppercase tracking-wide text-white/80">· {card.city}</span>
-          </div>
-          <p className="mt-2 text-sm text-white/90">{card.about}</p>
+        <div className="absolute bottom-0 left-0 right-0 p-6 pr-20 text-white drop-shadow-sm">
+          <p className="text-sm text-white/90 line-clamp-2">{card.about}</p>
         </div>
 
         <motion.div
@@ -203,20 +207,77 @@ type PageTurnCardStackProps = {
 
 export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onDepleted }) => {
   const [stack, setStack] = useState(cards);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [currentCardId, setCurrentCardId] = useState<string | null>(null);
   const lastDirections = useRef<Record<string, SwipeDirection>>({});
+  const swipeCountRef = useRef(0);
   const identity = useDeviceSession();
+  const initialCardsCount = useRef(cards.length);
+  
+  // 풍선 애니메이션 상태
+  const [balloonAnimation, setBalloonAnimation] = useState<{
+    type: 'like' | 'nope';
+    isVisible: boolean;
+    startX: number;
+  } | null>(null);
 
-  useEffect(() => setStack(cards), [cards]);
+  useEffect(() => {
+    setStack(cards);
+    initialCardsCount.current = cards.length;
+  }, [cards]);
 
-  const handleSwiped = (direction: SwipeDirection, id: string) => {
+  const handleCardSelect = (cardId: string) => {
+    // 선택한 카드를 스택의 맨 위로 이동
+    setStack((prev) => {
+      const cardIndex = prev.findIndex((c) => c.id === cardId);
+      if (cardIndex === -1) return prev;
+      
+      const selectedCard = prev[cardIndex];
+      const otherCards = prev.filter((c) => c.id !== cardId);
+      return [selectedCard, ...otherCards];
+    });
+  };
+
+  const handleSwipeStart = (direction: SwipeDirection) => {
+    // 랜덤 X 위치 생성 (화면 너비의 20%~80% 사이)
+    const randomX = 20 + Math.random() * 60;
+    
+    setBalloonAnimation({
+      type: direction === 'right' ? 'like' : 'nope',
+      isVisible: true,
+      startX: randomX,
+    });
+
+    // 0.5초 후 애니메이션 숨김
+    setTimeout(() => {
+      setBalloonAnimation((prev) => prev ? { ...prev, isVisible: false } : null);
+    }, 500);
+  };
+
+  const handleSwiped = async (direction: SwipeDirection, id: string) => {
     lastDirections.current[id] = direction;
     if (identity) {
-      void recordSwipe({
+      await recordSwipe({
         cardId: id,
         direction,
+        userId: identity.userId,
         sessionId: identity.sessionId,
         deviceId: identity.deviceId
       });
+
+      // 스와이프 카운트 증가
+      swipeCountRef.current += 1;
+
+      // 5번째 스와이프일 때 취향 분석 실행
+      if (swipeCountRef.current === 5) {
+        const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
+        if (groqApiKey) {
+          void analyzeUserPreferenceFromSwipes(identity.userId, identity.deviceId, groqApiKey);
+        } else {
+          console.warn('Groq API key not configured. Skipping preference analysis.');
+        }
+      }
     }
     setStack((prev) => {
       const [, ...rest] = prev;
@@ -229,7 +290,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
     console.info(`Card ${id} ${direction === "right" ? "liked" : "rejected"}`);
   };
 
-  const visibleCards = useMemo(() => stack.slice(0, 3), [stack]);
+  const visibleCards = useMemo(() => stack.slice(0, 30), [stack]);
 
   const exitAnimation = {
     exit: (dir: SwipeDirection) => ({
@@ -241,62 +302,110 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
     })
   };
 
+  // 현재 카드 인덱스 계산 (전체 카드 중에서)
+  const currentIndex = initialCardsCount.current - stack.length + 1;
+  const totalCards = Math.min(initialCardsCount.current, 30);
+
   return (
-    <div
-      className="relative flex h-[100svh] min-h-[100svh] w-screen items-center justify-center overflow-hidden"
-      style={{ perspective: 1400 }}
-    >
-      {visibleCards.length === 0 ? (
-        <div className="flex h-full w-full items-center justify-center text-slate-500">
-          더 이상 카드가 없습니다.
-        </div>
-      ) : null}
+    <>
+      <div
+        className="relative flex h-[100svh] min-h-[100svh] w-screen items-center justify-center overflow-hidden"
+        style={{ perspective: 1400 }}
+      >
+        {/* 우측 상단 카운터 */}
+        {visibleCards.length > 0 && (
+          <div className="absolute right-4 top-4 z-50 text-white/40 text-sm font-medium">
+            {currentIndex}/{totalCards}
+          </div>
+        )}
 
-      <AnimatePresence>
-        {visibleCards
-          .map((card, index) => {
-            const isTop = index === 0;
-            const depth = visibleCards.length - index;
-            const scale = 1 - index * 0.05;
-            const translateY = index * 12;
+        {visibleCards.length === 0 ? (
+          <LastPage onProfileClick={() => setProfileOpen(true)} />
+        ) : null}
 
-            return (
-              <motion.div
-                key={card.id}
-                initial={{ scale: scale - 0.08, y: translateY + 32, opacity: 0 }}
-                animate={{
-                  scale,
-                  y: translateY,
-                  opacity: 1,
-                  filter: "brightness(1)"
-                }}
-                exit="exit"
-                transition={{ type: "spring", stiffness: 260, damping: 28, mass: 1 }}
-                className="absolute inset-0"
-                style={{
-                  zIndex: depth
-                }}
-                custom={lastDirections.current[card.id] ?? "right"}
-                variants={exitAnimation}
-              >
-                {isTop ? (
-                  <PageTurnCard card={card} onSwiped={handleSwiped} />
-                ) : (
-                  <div className="relative h-full w-full bg-white/80 shadow-card">
-                    <img
-                      src={card.image}
-                      alt={card.name}
-                      className="h-full w-full object-cover opacity-70"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-transparent" />
-                  </div>
-                )}
-              </motion.div>
-            );
-          })
-          .reverse()}
-      </AnimatePresence>
-    </div>
+        <AnimatePresence>
+          {visibleCards
+            .map((card, index) => {
+              const isTop = index === 0;
+              const depth = visibleCards.length - index;
+              const scale = 1 - index * 0.05;
+              const translateY = index * 12;
+
+              return (
+                <motion.div
+                  key={card.id}
+                  initial={{ scale: scale - 0.08, y: translateY + 32, opacity: 0 }}
+                  animate={{
+                    scale,
+                    y: translateY,
+                    opacity: 1,
+                    filter: "brightness(1)"
+                  }}
+                  exit="exit"
+                  transition={{ type: "spring", stiffness: 260, damping: 28, mass: 1 }}
+                  className="absolute inset-0"
+                  style={{
+                    zIndex: depth
+                  }}
+                  custom={lastDirections.current[card.id] ?? "right"}
+                  variants={exitAnimation}
+                >
+                  {isTop ? (
+                    <PageTurnCard card={card} onSwiped={handleSwiped} onSwipeStart={handleSwipeStart} />
+                  ) : (
+                    <div className="relative h-full w-full bg-white/80 shadow-card">
+                      <img
+                        src={card.image}
+                        alt={card.name}
+                        className="h-full w-full object-cover opacity-70"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-transparent" />
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })
+            .reverse()}
+        </AnimatePresence>
+
+        {/* 풍선 애니메이션 */}
+        {balloonAnimation && (
+          <BalloonAnimation
+            type={balloonAnimation.type}
+            isVisible={balloonAnimation.isVisible}
+            startX={balloonAnimation.startX}
+          />
+        )}
+
+        {/* 우측 하단 액션 버튼 (카드 스택 밖에 고정) */}
+        {visibleCards.length > 0 && visibleCards[0] && (
+          <CardActionButtons
+            cardId={visibleCards[0].id}
+            onCommentsClick={() => {
+              setCurrentCardId(visibleCards[0].id);
+              setCommentsOpen(true);
+            }}
+            onProfileClick={() => {
+              setProfileOpen(true);
+            }}
+            onLikeClick={() => handleSwipeStart('right')}
+            onNopeClick={() => handleSwipeStart('left')}
+          />
+        )}
+      </div>
+
+      {/* Comments Panel */}
+      {currentCardId && (
+        <CommentsPanel cardId={currentCardId} isOpen={commentsOpen} onClose={() => setCommentsOpen(false)} />
+      )}
+
+      {/* Profile Panel */}
+      <ProfilePanel
+        isOpen={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onCardSelect={handleCardSelect}
+      />
+    </>
   );
 };
 
