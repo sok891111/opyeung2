@@ -3,10 +3,12 @@ import { PageTurnCardStack, SwipeCard } from "./components/PageTurnCardStack";
 import { sampleCards } from "./data/cards";
 import { fetchCards } from "./lib/supabaseCards";
 import { useDeviceSession } from "./hooks/useDeviceSession";
+import { SplashScreen } from "./components/SplashScreen";
 
 function App() {
   const [cards, setCards] = useState<SwipeCard[]>(sampleCards);
   const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
   const identity = useDeviceSession();
 
   useEffect(() => {
@@ -30,13 +32,14 @@ function App() {
     };
   }, [identity?.userId, identity?.deviceId]);
 
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+  };
+
   return (
     <div className="min-h-screen w-screen bg-black">
-      {loading ? (
-        <div className="flex h-screen w-screen items-center justify-center text-white/70">Loading...</div>
-      ) : (
-        <PageTurnCardStack cards={cards} />
-      )}
+      {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+      {!showSplash && <PageTurnCardStack cards={cards} />}
     </div>
   );
 }

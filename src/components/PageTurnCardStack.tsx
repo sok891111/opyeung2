@@ -9,6 +9,7 @@ import { ProfilePanel } from "./ProfilePanel";
 import { analyzeUserPreferenceFromSwipes } from "../lib/analyzePreference";
 import { BalloonAnimation } from "./BalloonAnimation";
 import { LastPage } from "./LastPage";
+import { getSupabaseClient } from "../lib/supabaseClient";
 
 export type SwipeCard = {
   id: string;
@@ -205,6 +206,8 @@ type PageTurnCardStackProps = {
   onDepleted?: () => void;
 };
 
+type CardSelectOption = string | SwipeCard;
+
 export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onDepleted }) => {
   const [stack, setStack] = useState(cards);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -227,16 +230,66 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
     initialCardsCount.current = cards.length;
   }, [cards]);
 
-  const handleCardSelect = (cardId: string) => {
-    // 선택한 카드를 스택의 맨 위로 이동
-    setStack((prev) => {
-      const cardIndex = prev.findIndex((c) => c.id === cardId);
-      if (cardIndex === -1) return prev;
-      
-      const selectedCard = prev[cardIndex];
-      const otherCards = prev.filter((c) => c.id !== cardId);
-      return [selectedCard, ...otherCards];
-    });
+  const handleCardSelect = async (cardIdOrCard: string | SwipeCard) => {
+    // 카드 객체가 전달된 경우
+    if (typeof cardIdOrCard === 'object') {
+      const card = cardIdOrCard;
+      setStack((prev) => {
+        const existingIndex = prev.findIndex((c) => c.id === card.id);
+        if (existingIndex !== -1) {
+          // 이미 있으면 맨 위로 이동
+          const otherCards = prev.filter((c) => c.id !== card.id);
+          return [prev[existingIndex], ...otherCards];
+        } else {
+          // 없으면 맨 위에 추가
+          return [card, ...prev];
+        }
+      });
+      return;
+    }
+
+    // cardId만 전달된 경우
+    const cardId = cardIdOrCard;
+    const existingCardIndex = stack.findIndex((c) => c.id === cardId);
+    
+    if (existingCardIndex !== -1) {
+      // 스택에 있으면 맨 위로 이동
+      setStack((prev) => {
+        const selectedCard = prev[existingCardIndex];
+        const otherCards = prev.filter((c) => c.id !== cardId);
+        return [selectedCard, ...otherCards];
+      });
+    } else {
+      // 스택에 없으면 Supabase에서 카드 정보 가져오기
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from("cards")
+            .select("id,name,age,city,about,image,tag,instagram_url")
+            .eq("id", cardId)
+            .single();
+
+          if (!error && data) {
+            const card: SwipeCard = {
+              id: String(data.id),
+              name: data.name ?? "",
+              age: Number(data.age ?? 0),
+              city: data.city ?? "",
+              about: data.about ?? "",
+              image: data.image ?? "",
+              tag: data.tag ?? undefined,
+              instagramUrl: data.instagram_url ?? undefined,
+            };
+            
+            // 카드를 스택 맨 위에 추가
+            setStack((prev) => [card, ...prev]);
+          }
+        } catch (err) {
+          console.error("Failed to fetch card:", err);
+        }
+      }
+    }
   };
 
   const handleSwipeStart = (direction: SwipeDirection) => {

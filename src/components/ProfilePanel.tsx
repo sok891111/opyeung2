@@ -10,7 +10,7 @@ import { useDeviceSession } from '../hooks/useDeviceSession';
 type ProfilePanelProps = {
   isOpen: boolean;
   onClose: () => void;
-  onCardSelect: (cardId: string) => void;
+  onCardSelect: (cardId: string | SwipeCard) => void;
 };
 
 export const ProfilePanel: React.FC<ProfilePanelProps> = ({ isOpen, onClose, onCardSelect }) => {
@@ -53,8 +53,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ isOpen, onClose, onC
     setLoading(false);
   };
 
-  const handleCardClick = (cardId: string) => {
-    onCardSelect(cardId);
+  const handleCardClick = (card: SwipeCard) => {
+    onCardSelect(card); // 전체 카드 객체 전달
     onClose();
   };
 
@@ -128,7 +128,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ isOpen, onClose, onC
                         {likedCards.map((card) => (
                           <button
                             key={card.id}
-                            onClick={() => handleCardClick(card.id)}
+                            onClick={() => handleCardClick(card)}
                             className="flex w-full items-center gap-4 rounded-lg border border-gray-200 p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
                           >
                             <img
