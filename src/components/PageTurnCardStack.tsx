@@ -302,10 +302,10 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
       startX: randomX,
     });
 
-    // 0.5초 후 애니메이션 숨김
+    // 2초 후 애니메이션 숨김 (더 오래 보이도록)
     setTimeout(() => {
       setBalloonAnimation((prev) => prev ? { ...prev, isVisible: false } : null);
-    }, 500);
+    }, 2000);
   };
 
   const handleSwiped = async (direction: SwipeDirection, id: string) => {
