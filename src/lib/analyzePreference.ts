@@ -43,21 +43,22 @@ export async function analyzeUserPreferenceFromSwipes(
     const cardIds = swipes.map((s) => s.card_id);
     const { data: cards, error: cardsError } = await supabase
       .from('cards')
-      .select('id, name, tag, city')
+      .select('id, name, tag, city, description')
       .in('id', cardIds);
 
     if (cardsError) throw cardsError;
 
     // 스와이프 데이터와 카드 정보 매칭
-    const cardMap = new Map(cards?.map((c) => [String(c.id), c]) || []);
+    const cardMap = new Map(cards?.map((c: any) => [String(c.id), c]) || []);
     const swipeData: SwipeData[] = swipes
       .map((swipe) => {
-        const card = cardMap.get(String(swipe.card_id));
+        const card = cardMap.get(String(swipe.card_id)) as any;
         if (!card) return null;
         return {
           name: card.name ?? '',
           tag: card.tag ?? undefined,
           city: card.city ?? undefined,
+          description: card.description ?? undefined,
           direction: swipe.direction === 'like' ? 'like' : 'nope',
         } as SwipeData;
       })
@@ -81,6 +82,88 @@ export async function analyzeUserPreferenceFromSwipes(
       return { preference, error: saveError };
     }
 
+    return { preference, error: null };
+  } catch (err) {
+    return { preference: null, error: err as Error };
+  }
+}
+
+/**
+ * 취향 재분석 함수 (기존 취향을 덮어씀)
+ * 최근 5개의 스와이프 데이터를 기반으로 취향을 재분석합니다.
+ */
+export async function reanalyzeUserPreferenceFromSwipes(
+  userId: string,
+  deviceId: string,
+  groqApiKey: string
+): Promise<{ preference: string | null; error: Error | null }> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { preference: null, error: new Error('Supabase client not configured') };
+
+  try {
+    // 최근 5개의 스와이프 데이터 가져오기
+    let query = supabase
+      .from('swipes')
+      .select('card_id, direction')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const { data: swipes, error: swipesError } = await query;
+
+    if (swipesError) throw swipesError;
+
+    if (!swipes || swipes.length < 5) {
+      return { preference: null, error: new Error('Not enough swipe data for re-analysis') };
+    }
+
+    // 최근 5개만 사용
+    const recentSwipes = swipes.slice(0, 5);
+
+    // 카드 정보 가져오기
+    const cardIds = recentSwipes.map((s) => s.card_id);
+    const { data: cards, error: cardsError } = await supabase
+      .from('cards')
+      .select('id, name, tag, city')
+      .in('id', cardIds);
+
+    if (cardsError) throw cardsError;
+
+    // 스와이프 데이터와 카드 정보 매칭
+    const cardMap = new Map(cards?.map((c: any) => [String(c.id), c]) || []);
+    const swipeData: SwipeData[] = recentSwipes
+      .map((swipe) => {
+        const card = cardMap.get(String(swipe.card_id)) as any;
+        if (!card) return null;
+        return {
+          name: card.name ?? '',
+          tag: card.tag ?? undefined,
+          city: card.city ?? undefined,
+          description: card.description ?? undefined,
+          direction: swipe.direction === 'like' ? 'like' : 'nope',
+        } as SwipeData;
+      })
+      .filter((item): item is SwipeData => item !== null);
+
+    if (swipeData.length === 0) {
+      return { preference: null, error: new Error('No valid swipe data found') };
+    }
+
+    // Groq API로 취향 분석
+    const { preference, error: groqError } = await analyzeUserPreference(swipeData, groqApiKey);
+
+    if (groqError || !preference) {
+      return { preference: null, error: groqError };
+    }
+
+    // Supabase에 저장 (기존 취향 덮어쓰기)
+    const { error: saveError } = await saveUserPreference(userId, deviceId, preference);
+
+    if (saveError) {
+      return { preference, error: saveError };
+    }
+
+    console.log('[Preference Re-analysis] Successfully re-analyzed user preference');
     return { preference, error: null };
   } catch (err) {
     return { preference: null, error: err as Error };

@@ -7,6 +7,61 @@ import { fetchUserComments } from '../lib/supabaseUserComments';
 import { fetchUserPreference } from '../lib/supabaseUserPreferences';
 import { useDeviceSession } from '../hooks/useDeviceSession';
 
+// 취향 텍스트를 파싱하여 연애인 섹션을 강조하는 컴포넌트
+const PreferenceTextDisplay: React.FC<{ text: string }> = ({ text }) => {
+  // "###비슷한 스타일의 연애인" 부분을 찾아서 분리
+  const celebritySectionRegex = /(###비슷한 스타일의 연애인\s*\n?)(.+?)(?=\n\n|\n#|$)/s;
+  const match = text.match(celebritySectionRegex);
+  
+  if (match) {
+    const beforeCelebrity = text.substring(0, match.index);
+    const celebrityTitle = match[1].trim();
+    const celebrityContent = match[2].trim();
+    const afterCelebrity = text.substring((match.index || 0) + match[0].length);
+    
+    return (
+      <div className="space-y-4 text-sm text-gray-700">
+        {/* 취향 설명 부분 */}
+        {beforeCelebrity && (
+          <p className="whitespace-pre-line leading-relaxed">{beforeCelebrity.trim()}</p>
+        )}
+        
+        {/* 연애인 섹션 - 강조 스타일 */}
+        <div className="mt-6 rounded-xl border border-amber-200/50 bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            <h4 className="text-base font-semibold text-amber-900">비슷한 스타일의 연예인</h4>
+          </div>
+          <p className="leading-relaxed text-gray-800 whitespace-pre-line">{celebrityContent}</p>
+        </div>
+        
+        {/* 태그 부분 */}
+        {afterCelebrity && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {afterCelebrity
+              .trim()
+              .split(/[,\s]+/)
+              .filter(tag => tag.trim().startsWith('#'))
+              .map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="rounded-full bg-gray-200/60 px-3 py-1 text-xs font-medium text-gray-700"
+                >
+                  {tag.trim()}
+                </span>
+              ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // 연애인 섹션이 없으면 기본 표시
+  return <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{text}</p>;
+};
+
 type ProfilePanelProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -108,9 +163,13 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ isOpen, onClose, onC
                   <section>
                     <h3 className="mb-3 text-base font-semibold text-gray-900">나의 상품 취향</h3>
                     <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-700 whitespace-pre-line">
-                        {preferenceText || '아직 충분한 스와이프 데이터가 없어 취향 분석이 완료되지 않았습니다. 더 많은 상품을 평가해주세요!'}
-                      </p>
+                      {preferenceText ? (
+                        <PreferenceTextDisplay text={preferenceText} />
+                      ) : (
+                        <p className="text-sm text-gray-700">
+                          아직 충분한 스와이프 데이터가 없어 취향 분석이 완료되지 않았습니다. 더 많은 상품을 평가해주세요!
+                        </p>
+                      )}
                     </div>
                   </section>
 

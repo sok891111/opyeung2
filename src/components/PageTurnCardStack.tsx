@@ -6,13 +6,15 @@ import { SwipeDirection } from "../types/swipe";
 import { CommentsPanel } from "./CommentsPanel";
 import { CardActionButtons } from "./CardActionButtons";
 import { ProfilePanel } from "./ProfilePanel";
-import { analyzeUserPreferenceFromSwipes } from "../lib/analyzePreference";
+import { analyzeUserPreferenceFromSwipes, reanalyzeUserPreferenceFromSwipes } from "../lib/analyzePreference";
 import { BalloonAnimation } from "./BalloonAnimation";
 import { LastPage } from "./LastPage";
 import { getSupabaseClient } from "../lib/supabaseClient";
 import { Tutorial, isTutorialCompleted } from "./Tutorial";
 import { PreferenceAnalysisLoading } from "./PreferenceAnalysisLoading";
+import { PreferenceReanalysisModal } from "./PreferenceReanalysisModal";
 import { fetchCardsOptimized as fetchCards } from "../lib/supabaseCardsOptimized";
+import { fetchRandomCards } from "../lib/supabaseRandomCards";
 import { fetchUserPreference } from "../lib/supabaseUserPreferences";
 
 export type SwipeCard = {
@@ -222,9 +224,13 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentCardId, setCurrentCardId] = useState<string | null>(null);
   const [isAnalyzingPreference, setIsAnalyzingPreference] = useState(false);
+  const [isReanalyzingPreference, setIsReanalyzingPreference] = useState(false);
+  const [isReanalysisMode, setIsReanalysisMode] = useState(false); // 재분석 모드 (랜덤 상품 5개 평가)
+  const [reanalysisSwipeCount, setReanalysisSwipeCount] = useState(0); // 재분석 모드에서의 스와이프 카운트
   const [viewingFromProfile, setViewingFromProfile] = useState<string | null>(null); // 프로필에서 선택한 카드 ID
   const lastDirections = useRef<Record<string, SwipeDirection>>({});
   const swipeCountRef = useRef(0);
+  const consecutiveNopeCountRef = useRef(0); // 연속 싫어요 카운트
   const identity = useDeviceSession();
   const initialCardsCount = useRef(cards.length);
   
@@ -374,11 +380,129 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
         deviceId: identity.deviceId
       });
 
-      // 스와이프 카운트 증가
-      swipeCountRef.current += 1;
+      // 싫어요 연속 카운트 추적 (재분석 모드가 아닐 때만)
+      if (!isReanalysisMode) {
+        const isNope = direction === 'right'; // 오른쪽 = 싫어요
+        if (isNope) {
+          consecutiveNopeCountRef.current += 1;
+        } else {
+          consecutiveNopeCountRef.current = 0; // 좋아요 시 리셋
+        }
 
-      // 5번째 스와이프일 때 취향 분석 실행 (최초 로그인 사용자만)
-      if (swipeCountRef.current === 5) {
+        // 싫어요 5번 연속 시 재분석 모드 진입
+        if (consecutiveNopeCountRef.current >= 5) {
+          console.log('[Preference Re-analysis] 5 consecutive nopes detected. Entering re-analysis mode.');
+          consecutiveNopeCountRef.current = 0; // 리셋
+          
+          // 재분석 모드 진입
+          setIsReanalysisMode(true);
+          setReanalysisSwipeCount(0);
+          setIsReanalyzingPreference(true);
+
+          // 랜덤 상품 5개 가져오기
+          try {
+            // 최소 1초 로딩 UI 표시
+            const minLoadingTime = new Promise(resolve => setTimeout(resolve, 1000));
+            
+            Promise.all([
+              fetchRandomCards(identity.userId, identity.deviceId, 5),
+              minLoadingTime
+            ])
+            .then(([{ data: randomCards, error: fetchError }]) => {
+              if (!fetchError && randomCards && randomCards.length > 0) {
+                // 현재 스택을 랜덤 상품 5개로 교체
+                setStack(randomCards);
+                // 카운팅 초기화 (5개로 설정)
+                initialCardsCount.current = randomCards.length;
+                setIsReanalyzingPreference(false);
+                console.log(`[Preference Re-analysis] Loaded ${randomCards.length} random cards for re-evaluation`);
+              } else {
+                console.error('Failed to fetch random cards for re-analysis:', fetchError);
+                setIsReanalyzingPreference(false);
+                setIsReanalysisMode(false);
+              }
+            })
+            .catch((err) => {
+              console.error('Error fetching random cards:', err);
+              setIsReanalyzingPreference(false);
+              setIsReanalysisMode(false);
+            });
+          } catch (err) {
+            console.error('Error setting up random cards fetch:', err);
+            setIsReanalyzingPreference(false);
+            setIsReanalysisMode(false);
+          }
+        }
+      }
+
+      // 재분석 모드에서의 스와이프 카운트
+      if (isReanalysisMode) {
+        const newCount = reanalysisSwipeCount + 1;
+        setReanalysisSwipeCount(newCount);
+
+        // 재분석 모드에서 5개 평가 완료 시 취향 재분석
+        if (newCount >= 5) {
+          const groqApiKey = (import.meta as any).env?.VITE_GROQ_API_KEY;
+          if (groqApiKey) {
+            // 원래 취향 분석 로직과 동일하게 PreferenceAnalysisLoading 사용
+            setIsAnalyzingPreference(true);
+            setIsReanalysisMode(false);
+            setReanalysisSwipeCount(0);
+            
+            // 최소 1.1초 로딩 UI 표시
+            const minLoadingTime = new Promise(resolve => setTimeout(resolve, 1100));
+            
+            Promise.all([
+              reanalyzeUserPreferenceFromSwipes(identity.userId, identity.deviceId, groqApiKey),
+              minLoadingTime
+            ])
+            .then(async ([{ preference, error }]) => {
+              // 로딩 UI 숨기기
+              setIsAnalyzingPreference(false);
+              
+              if (!error && preference) {
+                // 재분석 완료 후 취향 기반 카드 다시 가져오기
+                try {
+                  const { data: newCards, error: fetchError } = await fetchCards(
+                    identity.userId,
+                    identity.deviceId
+                  );
+                  
+                  if (!fetchError && newCards.length > 0) {
+                    // 최대 30개로 제한
+                    const limitedCards = newCards.slice(0, 30);
+                    // 현재 스택을 취향 기반 카드로 교체
+                    setStack(limitedCards);
+                    // 카운팅 초기화 (30개로 설정)
+                    initialCardsCount.current = limitedCards.length;
+                    console.log(`[Preference Re-analysis] Loaded ${limitedCards.length} preference-based cards after re-analysis`);
+                  }
+                } catch (err) {
+                  console.error('Failed to reload cards after re-analysis:', err);
+                }
+                
+                // 재분석 완료 후 프로필 패널 자동으로 열기
+                setTimeout(() => {
+                  setProfileOpen(true);
+                }, 300); // 약간의 딜레이 후 열기
+              }
+            })
+            .catch((err) => {
+              console.error('Preference re-analysis error:', err);
+              setIsAnalyzingPreference(false);
+              setIsReanalysisMode(false);
+              setReanalysisSwipeCount(0);
+            });
+          }
+        }
+      }
+
+      // 스와이프 카운트 증가 (재분석 모드가 아닐 때만)
+      if (!isReanalysisMode) {
+        swipeCountRef.current += 1;
+
+        // 5번째 스와이프일 때 취향 분석 실행 (최초 로그인 사용자만)
+        if (swipeCountRef.current === 5) {
         // 이미 취향 분석이 완료되었는지 확인
         fetchUserPreference(identity.userId, identity.deviceId)
           .then(({ data: existingPreference }) => {
@@ -449,6 +573,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
           .catch((err) => {
             console.error('Failed to check existing preference:', err);
           });
+        }
       }
     }
     setStack((prev) => {
@@ -597,6 +722,12 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
 
       {/* Preference Analysis Loading */}
       <PreferenceAnalysisLoading isVisible={isAnalyzingPreference} />
+      
+      {/* Preference Re-analysis Modal */}
+      <PreferenceReanalysisModal 
+        isVisible={isReanalyzingPreference} 
+        message="고객님의 취향을 재분석합니다. 5개의 상품에 대해 스타일을 평가해주세요."
+      />
     </>
   );
 };
