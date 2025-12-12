@@ -42,7 +42,8 @@ export const Tutorial: React.FC<TutorialProps> = ({
   // 첫 번째 단계에서 스와이프 애니메이션 (왼쪽 = 좋아요, 오른쪽 = 싫어요)
   useEffect(() => {
     if (currentStep === 0 && isVisible) {
-      const interval = setInterval(() => {
+      // 즉시 애니메이션 시작
+      const runAnimation = () => {
         setSwipeDirection('left'); // 왼쪽으로 = 좋아요
         setTimeout(() => {
           setSwipeDirection('center');
@@ -53,7 +54,13 @@ export const Tutorial: React.FC<TutorialProps> = ({
             }, 1000);
           }, 1000);
         }, 1000);
-      }, 3000);
+      };
+      
+      // 즉시 실행
+      runAnimation();
+      
+      // 이후 3초마다 반복
+      const interval = setInterval(runAnimation, 3000);
 
       return () => clearInterval(interval);
     }
@@ -62,12 +69,19 @@ export const Tutorial: React.FC<TutorialProps> = ({
   // 두 번째 단계에서 프로필 패널 애니메이션
   useEffect(() => {
     if (currentStep === 1 && isVisible) {
-      const interval = setInterval(() => {
+      // 즉시 애니메이션 시작
+      const runAnimation = () => {
         setShowProfileAnimation(true);
         setTimeout(() => {
           setShowProfileAnimation(false);
         }, 2000);
-      }, 3000);
+      };
+      
+      // 즉시 실행
+      runAnimation();
+      
+      // 이후 3초마다 반복
+      const interval = setInterval(runAnimation, 3000);
 
       return () => clearInterval(interval);
     } else {
@@ -78,12 +92,19 @@ export const Tutorial: React.FC<TutorialProps> = ({
   // 세 번째 단계에서 댓글창 애니메이션
   useEffect(() => {
     if (currentStep === 2 && isVisible) {
-      const interval = setInterval(() => {
+      // 즉시 애니메이션 시작
+      const runAnimation = () => {
         setShowCommentAnimation(true);
         setTimeout(() => {
           setShowCommentAnimation(false);
         }, 2000);
-      }, 3000);
+      };
+      
+      // 즉시 실행
+      runAnimation();
+      
+      // 이후 3초마다 반복
+      const interval = setInterval(runAnimation, 3000);
 
       return () => clearInterval(interval);
     } else {
@@ -94,7 +115,8 @@ export const Tutorial: React.FC<TutorialProps> = ({
   // 다섯 번째 단계에서 long press 애니메이션
   useEffect(() => {
     if (currentStep === 4 && isVisible) {
-      const interval = setInterval(() => {
+      // 즉시 애니메이션 시작
+      const runAnimation = () => {
         setIsLongPressing(true);
         setLongPressProgress(0);
         
@@ -121,7 +143,13 @@ export const Tutorial: React.FC<TutorialProps> = ({
         setTimeout(() => {
           clearInterval(progressInterval);
         }, 3000);
-      }, 3500); // 애니메이션 간격
+      };
+      
+      // 즉시 실행
+      runAnimation();
+      
+      // 이후 3.5초마다 반복
+      const interval = setInterval(runAnimation, 3500);
 
       return () => clearInterval(interval);
     } else {

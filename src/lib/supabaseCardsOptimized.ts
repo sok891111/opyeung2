@@ -152,8 +152,8 @@ export const fetchCardsOptimized = async (
     }
   }
 
-  // 사용자 취향이 없는 경우: 기존 방식 사용 (최신순)
-  console.log('[fetchCardsOptimized] No user preference found. Fetching cards in default order (newest first).');
+  // 사용자 취향이 없는 경우: 랜덤 순서로 조회
+  console.log('[fetchCardsOptimized] No user preference found. Fetching cards in random order.');
   return await fetchCardsFallback(userId, deviceId);
 };
 
@@ -193,12 +193,44 @@ async function fetchCardsFallback(
     }
   }
 
-  // 카드 조회
+  // PostgreSQL RPC 함수를 사용하여 랜덤하게 조회
+  try {
+    const { data: randomCards, error: rpcError } = await client.rpc('get_random_cards', {
+      p_viewed_card_ids: viewedCardIds.length > 0 ? viewedCardIds : null,
+      p_limit: 30
+    });
+
+    if (!rpcError && randomCards && randomCards.length > 0) {
+      const mapped: SwipeCard[] = randomCards.map((row: any) => ({
+        id: String(row.id),
+        name: row.name ?? "",
+        age: Number(row.age ?? 0),
+        city: row.city ?? "",
+        about: row.about ?? "",
+        image: row.image ?? "",
+        tag: row.tag ?? undefined,
+        instagramUrl: row.instagram_url ?? undefined,
+        description: row.description ?? undefined,
+        aiTags: row.ai_tags ?? undefined
+      }));
+
+      console.log(`[fetchCardsFallback] Retrieved ${mapped.length} random cards from database`);
+      return { data: mapped, error: null };
+    }
+
+    // RPC 함수가 없거나 에러 발생 시 기존 방식으로 폴백
+    if (rpcError) {
+      console.warn('RPC function get_random_cards not available, falling back to client-side random:', rpcError.message);
+    }
+  } catch (err) {
+    console.warn('Error calling get_random_cards RPC, falling back to client-side random:', err);
+  }
+
+  // 폴백: 클라이언트 측에서 랜덤하게 섞기
   let query = client
     .from("cards")
     .select("id,name,age,city,about,image,tag,instagram_url,description,ai_tags")
-    .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(1000);
 
   const { data: allCards, error } = await query;
 
@@ -211,8 +243,15 @@ async function fetchCardsFallback(
     ? allCards.filter((card) => !viewedCardIds.includes(String(card.id)))
     : allCards;
 
+  // 랜덤하게 섞기 (Fisher-Yates shuffle 알고리즘)
+  const shuffled = [...filteredCards];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
   // 최대 30개로 제한
-  const data = filteredCards.slice(0, 30);
+  const data = shuffled.slice(0, 30);
 
   const mapped: SwipeCard[] = data.map((row: any) => ({
     id: String(row.id),

@@ -537,6 +537,9 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
               if (!error && preference) {
                 // 취향 분석 완료 후 사용자 취향 기반으로 카드 다시 가져오기
                 try {
+                  // 취향 분석 전에 본 카드 수 저장
+                  const viewedBeforeAnalysis = initialCardsCount.current - stack.length;
+                  
                   const { data: newCards, error: fetchError } = await fetchCards(
                     identity.userId,
                     identity.deviceId
@@ -551,7 +554,12 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
                     
                     if (newCardsToAdd.length > 0) {
                       // 현재 스택 뒤에 취향 기반 카드 추가
-                      setStack((prev) => [...prev, ...newCardsToAdd]);
+                      setStack((prev) => {
+                        const newStack = [...prev, ...newCardsToAdd];
+                        // 카운팅을 위해 initialCardsCount 업데이트 (본 카드 수 + 새 카드 수)
+                        initialCardsCount.current = viewedBeforeAnalysis + newStack.length;
+                        return newStack;
+                      });
                       console.log(`[Preference Analysis] Added ${newCardsToAdd.length} preference-based cards to stack`);
                     }
                   }
@@ -600,8 +608,11 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
   };
 
   // 현재 카드 인덱스 계산 (전체 카드 중에서)
-  const currentIndex = initialCardsCount.current - stack.length + 1;
   const totalCards = Math.min(initialCardsCount.current, 30);
+  // 본 카드 수 = initialCardsCount - stack.length
+  // 현재 인덱스 = 본 카드 수 + 1
+  const viewedCount = Math.max(0, initialCardsCount.current - stack.length);
+  const currentIndex = Math.max(1, Math.min(viewedCount + 1, totalCards));
 
   return (
     <>
