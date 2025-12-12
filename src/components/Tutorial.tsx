@@ -39,15 +39,15 @@ export const Tutorial: React.FC<TutorialProps> = ({
     onStepChange?.(step);
   };
 
-  // 첫 번째 단계에서 스와이프 애니메이션
+  // 첫 번째 단계에서 스와이프 애니메이션 (왼쪽 = 좋아요, 오른쪽 = 싫어요)
   useEffect(() => {
     if (currentStep === 0 && isVisible) {
       const interval = setInterval(() => {
-        setSwipeDirection('right');
+        setSwipeDirection('left'); // 왼쪽으로 = 좋아요
         setTimeout(() => {
           setSwipeDirection('center');
           setTimeout(() => {
-            setSwipeDirection('left');
+            setSwipeDirection('right'); // 오른쪽으로 = 싫어요
             setTimeout(() => {
               setSwipeDirection('center');
             }, 1000);
@@ -133,7 +133,7 @@ export const Tutorial: React.FC<TutorialProps> = ({
   const steps = [
     {
       title: '좌우로 스와이프하세요',
-      description: '좌우로 카드를 넘겨서 다양한 스타일을 평가하세요. 오른쪽으로 넘기면 좋아요\n왼쪽으로 넘기면 싫어요로 평가합니다.',
+      description: '좌우로 카드를 넘겨서 다양한 스타일을 평가하세요. 왼쪽으로 넘기면 좋아요\n오른쪽으로 넘기면 싫어요로 평가합니다.',
       highlight: 'swipe' as const,
     },
     {
@@ -212,9 +212,9 @@ export const Tutorial: React.FC<TutorialProps> = ({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                   
-                  {/* 좋아요/싫어요 표시 */}
+                  {/* 좋아요/싫어요 표시 (왼쪽 = 좋아요, 오른쪽 = 싫어요) */}
                   <AnimatePresence>
-                    {swipeDirection === 'right' && (
+                    {swipeDirection === 'left' && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -224,7 +224,7 @@ export const Tutorial: React.FC<TutorialProps> = ({
                         <span className="text-2xl font-black text-green-500">좋아요</span>
                       </motion.div>
                     )}
-                    {swipeDirection === 'left' && (
+                    {swipeDirection === 'right' && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -245,20 +245,20 @@ export const Tutorial: React.FC<TutorialProps> = ({
                       transition={{ duration: 1, repeat: Infinity }}
                       className="flex items-center gap-2 text-white"
                     >
-                      {swipeDirection === 'right' && (
-                        <>
-                          <span className="text-sm font-semibold">오른쪽으로</span>
-                          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </>
-                      )}
                       {swipeDirection === 'left' && (
                         <>
                           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                           </svg>
                           <span className="text-sm font-semibold">왼쪽으로</span>
+                        </>
+                      )}
+                      {swipeDirection === 'right' && (
+                        <>
+                          <span className="text-sm font-semibold">오른쪽으로</span>
+                          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
                         </>
                       )}
                       {swipeDirection === 'center' && (

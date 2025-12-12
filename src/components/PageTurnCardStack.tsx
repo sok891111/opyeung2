@@ -70,8 +70,8 @@ const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped, onSwipeStar
     return `linear-gradient(${direction}deg, rgba(0,0,0,${intensity}) 0%, rgba(0,0,0,0) 55%)`;
   });
 
-  const likeOpacity = useTransform(x, [0, cardWidth * SWIPE_RATIO_THRESHOLD], [0, 1]);
-  const nopeOpacity = useTransform(x, [-cardWidth * SWIPE_RATIO_THRESHOLD, 0], [1, 0]);
+  const likeOpacity = useTransform(x, [-cardWidth * SWIPE_RATIO_THRESHOLD, 0], [1, 0]);
+  const nopeOpacity = useTransform(x, [0, cardWidth * SWIPE_RATIO_THRESHOLD], [0, 1]);
   const boxShadow = useTransform(
     curlStrength,
     [0, 1],
@@ -178,18 +178,20 @@ const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped, onSwipeStar
           <p className="text-sm text-white/90 line-clamp-2">{card.about}</p>
         </div>
 
+        {/* LIKE 표시: 왼쪽으로 swipe 시 오른쪽 상단에 표시 (swipe 반대 방향) */}
         <motion.div
           aria-hidden
           style={{ opacity: likeOpacity }}
-          className="absolute left-4 top-5 rounded-md border-4 border-like px-4 py-2 text-2xl font-black text-like shadow-lg shadow-like/30"
+          className="absolute right-4 top-5 rounded-md border-4 border-green-500 bg-green-500/95 px-6 py-3 text-3xl font-black text-white shadow-2xl backdrop-blur-sm"
         >
           LIKE
         </motion.div>
 
+        {/* NOPE 표시: 오른쪽으로 swipe 시 왼쪽 상단에 표시 (swipe 반대 방향) */}
         <motion.div
           aria-hidden
           style={{ opacity: nopeOpacity }}
-          className="absolute right-4 top-5 rounded-md border-4 border-nope px-4 py-2 text-2xl font-black text-nope shadow-lg shadow-nope/30"
+          className="absolute left-4 top-5 rounded-md border-4 border-red-500 bg-red-500/95 px-6 py-3 text-3xl font-black text-white shadow-2xl backdrop-blur-sm"
         >
           NOPE
         </motion.div>
@@ -320,12 +322,12 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
     const randomX = 20 + Math.random() * 60;
     const balloonId = `balloon-${Date.now()}-${Math.random()}`;
     
-    // 새 풍선 추가
+    // 새 풍선 추가 (왼쪽 = 좋아요, 오른쪽 = 싫어요)
     setBalloonAnimations((prev) => [
       ...prev,
       {
         id: balloonId,
-        type: direction === 'right' ? 'like' : 'nope',
+        type: direction === 'left' ? 'like' : 'nope',
         isVisible: true,
         startX: randomX,
       },
@@ -363,6 +365,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
 
     lastDirections.current[id] = direction;
     if (identity) {
+      // 방향은 그대로 전달 (supabaseSwipes.ts에서 처리)
       await recordSwipe({
         cardId: id,
         direction,
@@ -456,7 +459,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
       return rest;
     });
     // Simple haptic style feedback could be added here for mobile devices.
-    console.info(`Card ${id} ${direction === "right" ? "liked" : "rejected"}`);
+    console.info(`Card ${id} ${direction === "left" ? "liked" : "rejected"}`);
   };
 
   const visibleCards = useMemo(() => stack.slice(0, 30), [stack]);
@@ -558,8 +561,8 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
             onProfileClick={() => {
               setProfileOpen(true);
             }}
-            onLikeClick={() => handleSwipeStart('right')}
-            onNopeClick={() => handleSwipeStart('left')}
+            onLikeClick={() => handleSwipeStart('left')} // 왼쪽 = 좋아요
+            onNopeClick={() => handleSwipeStart('right')} // 오른쪽 = 싫어요
           />
         )}
       </div>

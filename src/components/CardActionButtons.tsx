@@ -46,7 +46,7 @@ export const CardActionButtons: React.FC<CardActionButtonsProps> = ({
     setProcessing('like');
     const { error } = await recordSwipe({
       cardId,
-      direction: 'right',
+      direction: 'left', // 왼쪽 = 좋아요
       userId: identity.userId,
       sessionId: identity.sessionId,
       deviceId: identity.deviceId,
@@ -66,7 +66,7 @@ export const CardActionButtons: React.FC<CardActionButtonsProps> = ({
     setProcessing('nope');
     const { error } = await recordSwipe({
       cardId,
-      direction: 'left',
+      direction: 'right', // 오른쪽 = 싫어요
       userId: identity.userId,
       sessionId: identity.sessionId,
       deviceId: identity.deviceId,

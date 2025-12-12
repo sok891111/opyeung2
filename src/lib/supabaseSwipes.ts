@@ -18,7 +18,7 @@ export const recordSwipe = async (input: RecordSwipeInput) => {
   const payload = {
     user_id: input.userId ?? null,
     card_id: input.cardId,
-    direction: input.direction === "right" ? "like" : "nope",
+    direction: input.direction === "left" ? "like" : "nope", // 왼쪽 = 좋아요, 오른쪽 = 싫어요
     session_id: input.sessionId ?? null,
     device_id: input.deviceId ?? null
   };
