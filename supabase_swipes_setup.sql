@@ -37,3 +37,6 @@ create policy if not exists "swipes open access" on public.swipes
 -- ('test-device-2', '카드UUID1', 'nope', 'test-session-2'),
 -- ('test-device-2', '카드UUID3', 'like', 'test-session-2');
 
+
+
+

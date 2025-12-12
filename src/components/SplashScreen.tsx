@@ -14,8 +14,8 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       // 애니메이션 완료 후 콜백 호출
       setTimeout(() => {
         onComplete();
-      }, 300); // fade out 애니메이션 시간
-    }, 300); // 0.3초 유지
+      }, 800); // fade out 애니메이션 시간
+    }, 800); // 0.8초 유지
 
     return () => clearTimeout(timer);
   }, [onComplete]);

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { PageTurnCardStack, SwipeCard } from "./components/PageTurnCardStack";
 import { sampleCards } from "./data/cards";
-import { fetchCards } from "./lib/supabaseCards";
+import { fetchCardsOptimized as fetchCards } from "./lib/supabaseCardsOptimized";
 import { useDeviceSession } from "./hooks/useDeviceSession";
 import { SplashScreen } from "./components/SplashScreen";
 
@@ -16,15 +16,23 @@ function App() {
 
     let mounted = true;
     const load = async () => {
-      const { data, error } = await fetchCards(identity.userId, identity.deviceId);
-      if (!mounted) return;
-      if (!error && data.length > 0) {
-        // 최대 30개로 제한
-        setCards(data.slice(0, 30));
-      } else {
+      try {
+        const { data, error } = await fetchCards(identity.userId, identity.deviceId);
+        if (!mounted) return;
+        if (!error && data.length > 0) {
+          // 최대 30개로 제한
+          setCards(data.slice(0, 30));
+        } else {
+          console.warn("Failed to fetch cards or no data, using sample cards:", error?.message);
+          setCards(sampleCards.slice(0, 30));
+        }
+      } catch (err) {
+        console.error("Error loading cards:", err);
+        if (!mounted) return;
         setCards(sampleCards.slice(0, 30));
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     void load();
     return () => {

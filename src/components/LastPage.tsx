@@ -37,3 +37,6 @@ export const LastPage: React.FC<LastPageProps> = ({ onProfileClick }) => {
   );
 };
 
+
+
+

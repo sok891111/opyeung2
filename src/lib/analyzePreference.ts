@@ -64,7 +64,7 @@ export async function analyzeUserPreferenceFromSwipes(
       .filter((item): item is SwipeData => item !== null);
 
     if (swipeData.length === 0) {
-      return { preference: null, error: new Error('No valid swipe data found') };
+      return { preference: null, error: new Error('No alid swipve data found') };
     }
 
     // Groq API로 취향 분석

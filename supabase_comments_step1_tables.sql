@@ -33,3 +33,6 @@ create index if not exists comments_created_idx on public.comments(created_at de
 create index if not exists comment_reactions_comment_idx on public.comment_reactions(comment_id);
 create index if not exists comment_reactions_user_device_idx on public.comment_reactions(device_id);
 
+
+
+

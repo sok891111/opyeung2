@@ -21,3 +21,6 @@ drop policy if exists "user_preferences open access" on public.user_preferences;
 create policy "user_preferences open access" on public.user_preferences
   for all using (true) with check (true);
 
+
+
+

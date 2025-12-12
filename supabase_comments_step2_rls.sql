@@ -16,3 +16,6 @@ drop policy if exists "comment_reactions open access" on public.comment_reaction
 create policy "comment_reactions open access" on public.comment_reactions
   for all using (true) with check (true);
 
+
+
+

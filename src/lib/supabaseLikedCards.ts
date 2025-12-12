@@ -33,7 +33,7 @@ export async function fetchLikedCards(userId: string, deviceId: string): Promise
     // 카드 정보 가져오기
     const { data: cards, error: cardsError } = await supabase
       .from('cards')
-      .select('id,name,age,city,about,image,tag,instagram_url')
+      .select('id,name,age,city,about,image,tag,instagram_url,description,ai_tags')
       .in('id', cardIds);
 
     if (cardsError) throw cardsError;
@@ -52,6 +52,8 @@ export async function fetchLikedCards(userId: string, deviceId: string): Promise
         image: row.image ?? '',
         tag: row.tag ?? undefined,
         instagramUrl: row.instagram_url ?? undefined,
+        description: row.description ?? undefined,
+        aiTags: row.ai_tags ?? undefined,
       }));
 
     return { data: orderedCards, error: null };

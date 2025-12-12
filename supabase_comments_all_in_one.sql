@@ -86,3 +86,6 @@ create trigger comment_reactions_count_trigger
   after insert or update or delete on public.comment_reactions
   for each row execute function public.update_comment_reaction_counts();
 
+
+
+

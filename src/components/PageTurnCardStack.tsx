@@ -12,6 +12,7 @@ import { LastPage } from "./LastPage";
 import { getSupabaseClient } from "../lib/supabaseClient";
 import { Tutorial, isTutorialCompleted } from "./Tutorial";
 import { PreferenceAnalysisLoading } from "./PreferenceAnalysisLoading";
+import { fetchCardsOptimized as fetchCards } from "../lib/supabaseCardsOptimized";
 
 export type SwipeCard = {
   id: string;
@@ -22,6 +23,8 @@ export type SwipeCard = {
   image: string;
   tag?: string;
   instagramUrl?: string;
+  description?: string;
+  aiTags?: string;
 };
 
 const SWIPE_RATIO_THRESHOLD = 0.3;
@@ -283,7 +286,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
         try {
           const { data, error } = await supabase
             .from("cards")
-            .select("id,name,age,city,about,image,tag,instagram_url")
+            .select("id,name,age,city,about,image,tag,instagram_url,description,ai_tags")
             .eq("id", cardId)
             .single();
 
@@ -297,6 +300,8 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
               image: data.image ?? "",
               tag: data.tag ?? undefined,
               instagramUrl: data.instagram_url ?? undefined,
+              description: data.description ?? undefined,
+              aiTags: data.ai_tags ?? undefined,
             };
             
             // 카드를 스택 맨 위에 추가
@@ -383,11 +388,35 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
             analyzeUserPreferenceFromSwipes(identity.userId, identity.deviceId, groqApiKey),
             minLoadingTime
           ])
-            .then(([{ preference, error }]) => {
+            .then(async ([{ preference, error }]) => {
               // 로딩 UI 숨기기 (최소 0.8초 후)
               setIsAnalyzingPreference(false);
               
               if (!error && preference) {
+                // 취향 분석 완료 후 사용자 취향 기반으로 카드 다시 가져오기
+                try {
+                  const { data: newCards, error: fetchError } = await fetchCards(
+                    identity.userId,
+                    identity.deviceId
+                  );
+                  
+                  if (!fetchError && newCards.length > 0) {
+                    // 현재 스택의 남은 카드 ID 목록
+                    const currentStackIds = new Set(stack.map(card => card.id));
+                    
+                    // 새로 가져온 카드 중 현재 스택에 없는 카드만 필터링
+                    const newCardsToAdd = newCards.filter(card => !currentStackIds.has(card.id));
+                    
+                    if (newCardsToAdd.length > 0) {
+                      // 현재 스택 뒤에 취향 기반 카드 추가
+                      setStack((prev) => [...prev, ...newCardsToAdd]);
+                      console.log(`[Preference Analysis] Added ${newCardsToAdd.length} preference-based cards to stack`);
+                    }
+                  }
+                } catch (err) {
+                  console.error('Failed to reload cards after preference analysis:', err);
+                }
+                
                 // 분석 완료 후 프로필 패널 자동으로 열기
                 setTimeout(() => {
                   setProfileOpen(true);
