@@ -133,7 +133,7 @@ export const Tutorial: React.FC<TutorialProps> = ({
   const steps = [
     {
       title: '좌우로 스와이프하세요',
-      description: '좌우로 카드를 넘겨서 다양한 스타일을 평가하세요. 오른쪽으로 넘기면 좋아요/왼쪽으로 넘기면 싫어요로 평가합니다.',
+      description: '좌우로 카드를 넘겨서 다양한 스타일을 평가하세요. 오른쪽으로 넘기면 좋아요\n왼쪽으로 넘기면 싫어요로 평가합니다.',
       highlight: 'swipe' as const,
     },
     {

@@ -10,6 +10,15 @@ body {
   min-height: 100svh;
   overscroll-behavior-y: none;
   touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 모바일 zoom 방지 */
+* {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {

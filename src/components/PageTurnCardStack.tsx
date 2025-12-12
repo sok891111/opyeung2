@@ -11,6 +11,7 @@ import { BalloonAnimation } from "./BalloonAnimation";
 import { LastPage } from "./LastPage";
 import { getSupabaseClient } from "../lib/supabaseClient";
 import { Tutorial, isTutorialCompleted } from "./Tutorial";
+import { PreferenceAnalysisLoading } from "./PreferenceAnalysisLoading";
 
 export type SwipeCard = {
   id: string;
@@ -214,6 +215,8 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentCardId, setCurrentCardId] = useState<string | null>(null);
+  const [isAnalyzingPreference, setIsAnalyzingPreference] = useState(false);
+  const [viewingFromProfile, setViewingFromProfile] = useState<string | null>(null); // 프로필에서 선택한 카드 ID
   const lastDirections = useRef<Record<string, SwipeDirection>>({});
   const swipeCountRef = useRef(0);
   const identity = useDeviceSession();
@@ -247,6 +250,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
     // 카드 객체가 전달된 경우
     if (typeof cardIdOrCard === 'object') {
       const card = cardIdOrCard;
+      setViewingFromProfile(card.id); // 프로필에서 선택한 카드로 표시
       setStack((prev) => {
         const existingIndex = prev.findIndex((c) => c.id === card.id);
         if (existingIndex !== -1) {
@@ -337,6 +341,20 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
   };
 
   const handleSwiped = async (direction: SwipeDirection, id: string) => {
+    // 프로필에서 선택한 카드를 보고 있는 경우, 좋아요/싫어요 처리 없이 넘기기만
+    if (viewingFromProfile === id) {
+      setViewingFromProfile(null); // 다음 카드로 넘어가면 플래그 해제
+      setStack((prev) => {
+        const [, ...rest] = prev;
+        if (rest.length === 0) {
+          onDepleted?.();
+        }
+        return rest;
+      });
+      console.info(`Card ${id} skipped (viewing from profile)`);
+      return;
+    }
+
     lastDirections.current[id] = direction;
     if (identity) {
       await recordSwipe({
@@ -352,9 +370,34 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
 
       // 5번째 스와이프일 때 취향 분석 실행
       if (swipeCountRef.current === 5) {
-        const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
+        const groqApiKey = (import.meta as any).env?.VITE_GROQ_API_KEY;
         if (groqApiKey) {
-          void analyzeUserPreferenceFromSwipes(identity.userId, identity.deviceId, groqApiKey);
+          // 로딩 UI 표시
+          setIsAnalyzingPreference(true);
+          
+          // 최소 0.8초 로딩 UI 표시를 위한 Promise.all 사용
+          const minLoadingTime = new Promise(resolve => setTimeout(resolve, 1100));
+          
+          // 취향 분석 실행
+          Promise.all([
+            analyzeUserPreferenceFromSwipes(identity.userId, identity.deviceId, groqApiKey),
+            minLoadingTime
+          ])
+            .then(([{ preference, error }]) => {
+              // 로딩 UI 숨기기 (최소 0.8초 후)
+              setIsAnalyzingPreference(false);
+              
+              if (!error && preference) {
+                // 분석 완료 후 프로필 패널 자동으로 열기
+                setTimeout(() => {
+                  setProfileOpen(true);
+                }, 300); // 약간의 딜레이 후 열기
+              }
+            })
+            .catch((err) => {
+              console.error('Preference analysis error:', err);
+              setIsAnalyzingPreference(false);
+            });
         } else {
           console.warn('Groq API key not configured. Skipping preference analysis.');
         }
@@ -488,21 +531,24 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
         onCardSelect={handleCardSelect}
       />
 
-      {/* Tutorial */}
-      <Tutorial
-        isVisible={showTutorial}
-        onComplete={() => setShowTutorial(false)}
-        currentStep={tutorialStep}
-        onStepChange={setTutorialStep}
-        sampleCard={visibleCards.length > 0 ? visibleCards[0] : undefined}
-        highlightElement={
-          showTutorial
-            ? tutorialStep === 3
-              ? { type: 'counter', position: { top: 16, right: 16, width: 60, height: 24 } }
-              : null
-            : null
-        }
-      />
+                  {/* Tutorial */}
+                  <Tutorial
+                    isVisible={showTutorial}
+                    onComplete={() => setShowTutorial(false)}
+                    currentStep={tutorialStep}
+                    onStepChange={setTutorialStep}
+                    sampleCard={visibleCards.length > 0 ? visibleCards[0] : undefined}
+                    highlightElement={
+                      showTutorial
+                        ? tutorialStep === 3
+                          ? { type: 'counter', position: { top: 16, right: 16, width: 60, height: 24 } }
+                          : null
+                        : null
+                    }
+                  />
+
+      {/* Preference Analysis Loading */}
+      <PreferenceAnalysisLoading isVisible={isAnalyzingPreference} />
     </>
   );
 };
