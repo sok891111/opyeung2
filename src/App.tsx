@@ -46,7 +46,7 @@ function App() {
 
   return (
     <div className="min-h-screen w-screen bg-black">
-      {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+      {showSplash && <SplashScreen onComplete={handleSplashComplete} isLoading={loading} />}
       {!showSplash && <PageTurnCardStack cards={cards} />}
     </div>
   );

@@ -3,22 +3,36 @@ import React, { useEffect, useState } from 'react';
 
 type SplashScreenProps = {
   onComplete: () => void;
+  isLoading?: boolean; // 카드 로딩 상태
 };
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, isLoading = true }) => {
   const [isVisible, setIsVisible] = useState(true);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(false);
-      // 애니메이션 완료 후 콜백 호출
-      setTimeout(() => {
-        onComplete();
-      }, 800); // fade out 애니메이션 시간
-    }, 800); // 0.8초 유지
+    // 최소 1초 유지
+    const minTimer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 1000);
 
-    return () => clearTimeout(timer);
-  }, [onComplete]);
+    return () => clearTimeout(minTimer);
+  }, []);
+
+  useEffect(() => {
+    // 최소 시간이 지나고 로딩이 완료되면 SplashScreen 종료
+    if (minTimeElapsed && !isLoading) {
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+        // 애니메이션 완료 후 콜백 호출
+        setTimeout(() => {
+          onComplete();
+        }, 300); // fade out 애니메이션 시간
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [minTimeElapsed, isLoading, onComplete]);
 
   return (
     <AnimatePresence>

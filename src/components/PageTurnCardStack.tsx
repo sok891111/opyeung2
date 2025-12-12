@@ -13,6 +13,7 @@ import { getSupabaseClient } from "../lib/supabaseClient";
 import { Tutorial, isTutorialCompleted } from "./Tutorial";
 import { PreferenceAnalysisLoading } from "./PreferenceAnalysisLoading";
 import { fetchCardsOptimized as fetchCards } from "../lib/supabaseCardsOptimized";
+import { fetchUserPreference } from "../lib/supabaseUserPreferences";
 
 export type SwipeCard = {
   id: string;
@@ -373,21 +374,35 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
       // 스와이프 카운트 증가
       swipeCountRef.current += 1;
 
-      // 5번째 스와이프일 때 취향 분석 실행
+      // 5번째 스와이프일 때 취향 분석 실행 (최초 로그인 사용자만)
       if (swipeCountRef.current === 5) {
-        const groqApiKey = (import.meta as any).env?.VITE_GROQ_API_KEY;
-        if (groqApiKey) {
-          // 로딩 UI 표시
-          setIsAnalyzingPreference(true);
-          
-          // 최소 0.8초 로딩 UI 표시를 위한 Promise.all 사용
-          const minLoadingTime = new Promise(resolve => setTimeout(resolve, 1100));
-          
-          // 취향 분석 실행
-          Promise.all([
-            analyzeUserPreferenceFromSwipes(identity.userId, identity.deviceId, groqApiKey),
-            minLoadingTime
-          ])
+        // 이미 취향 분석이 완료되었는지 확인
+        fetchUserPreference(identity.userId, identity.deviceId)
+          .then(({ data: existingPreference }) => {
+            // 취향 분석이 이미 있으면 스킵
+            if (existingPreference) {
+              console.log('[Preference Analysis] Already analyzed, skipping.');
+              return;
+            }
+
+            // 취향 분석이 없으면 분석 실행
+            const groqApiKey = (import.meta as any).env?.VITE_GROQ_API_KEY;
+            if (!groqApiKey) {
+              console.warn('Groq API key not configured. Skipping preference analysis.');
+              return;
+            }
+
+            // 로딩 UI 표시
+            setIsAnalyzingPreference(true);
+            
+            // 최소 0.8초 로딩 UI 표시를 위한 Promise.all 사용
+            const minLoadingTime = new Promise(resolve => setTimeout(resolve, 1100));
+            
+            // 취향 분석 실행
+            Promise.all([
+              analyzeUserPreferenceFromSwipes(identity.userId, identity.deviceId, groqApiKey),
+              minLoadingTime
+            ])
             .then(async ([{ preference, error }]) => {
               // 로딩 UI 숨기기 (최소 0.8초 후)
               setIsAnalyzingPreference(false);
@@ -427,9 +442,10 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
               console.error('Preference analysis error:', err);
               setIsAnalyzingPreference(false);
             });
-        } else {
-          console.warn('Groq API key not configured. Skipping preference analysis.');
-        }
+          })
+          .catch((err) => {
+            console.error('Failed to check existing preference:', err);
+          });
       }
     }
     setStack((prev) => {

@@ -43,12 +43,16 @@ export const fetchCardsOptimized = async (
 
   // 사용자 취향 정보 가져오기
   let userTags: string[] = [];
+  let hasPreference = false;
   if (userId && deviceId) {
     try {
       const { data: preference } = await fetchUserPreference(userId, deviceId);
       if (preference?.preference_text) {
+        hasPreference = true;
         userTags = extractUserTags(preference.preference_text);
-        console.log('[fetchCardsOptimized] User preference tags:', userTags);
+        console.log('[fetchCardsOptimized] User has preference analysis. Tags:', userTags);
+      } else {
+        console.log('[fetchCardsOptimized] No user preference found. Using default card order.');
       }
     } catch (err) {
       console.warn("Failed to fetch user preference:", err);
@@ -81,6 +85,7 @@ export const fetchCardsOptimized = async (
 
   // 사용자 취향이 있는 경우: TF-IDF 기반 PostgreSQL 함수 사용
   if (userTags.length > 0) {
+    console.log(`[fetchCardsOptimized] Fetching preference-based cards for user with ${userTags.length} preference tags`);
     try {
       // 먼저 TF-IDF 기반 함수 시도
       const { data: tfidfData, error: tfidfError } = await client.rpc('get_tfidf_based_cards', {
@@ -103,7 +108,7 @@ export const fetchCardsOptimized = async (
           aiTags: row.ai_tags ?? undefined
         }));
 
-        console.log(`[fetchCardsOptimized] Retrieved ${mapped.length} cards using TF-IDF based PostgreSQL function`);
+        console.log(`[fetchCardsOptimized] ✅ Retrieved ${mapped.length} preference-based cards using TF-IDF (sorted by match score)`);
         return { data: mapped, error: null };
       }
 
@@ -138,7 +143,7 @@ export const fetchCardsOptimized = async (
         aiTags: row.ai_tags ?? undefined
       }));
 
-      console.log(`[fetchCardsOptimized] Retrieved ${mapped.length} cards using basic PostgreSQL function`);
+      console.log(`[fetchCardsOptimized] ✅ Retrieved ${mapped.length} preference-based cards using basic PostgreSQL function (sorted by match score)`);
       return { data: mapped, error: null };
     } catch (err) {
       console.error('Error calling RPC function:', err);
@@ -147,7 +152,8 @@ export const fetchCardsOptimized = async (
     }
   }
 
-  // 사용자 취향이 없는 경우: 기존 방식 사용
+  // 사용자 취향이 없는 경우: 기존 방식 사용 (최신순)
+  console.log('[fetchCardsOptimized] No user preference found. Fetching cards in default order (newest first).');
   return await fetchCardsFallback(userId, deviceId);
 };
 
