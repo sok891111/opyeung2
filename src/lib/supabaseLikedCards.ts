@@ -6,20 +6,11 @@ export async function fetchLikedCards(userId: string, deviceId: string): Promise
   if (!supabase) return { data: [], error: new Error('Supabase client not configured') };
 
   try {
-    // 오늘 날짜의 시작 시간과 끝 시간 계산 (로컬 시간 기준)
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const todayStartISO = todayStart.toISOString();
-    const todayEndISO = todayEnd.toISOString();
-
-    // 오늘 좋아요한 카드 ID 목록 가져오기 (userId 우선, 없으면 deviceId 사용)
+    // 모든 좋아요한 카드 ID 목록 가져오기 (userId 우선, 없으면 deviceId 사용)
     let query = supabase
       .from('swipes')
       .select('card_id')
       .eq('direction', 'like')
-      .gte('created_at', todayStartISO)
-      .lte('created_at', todayEndISO) // 오늘 날짜 범위 내의 swipes만
       .order('created_at', { ascending: false });
 
     // userId가 있으면 userId로 필터링, 없으면 deviceId로 필터링

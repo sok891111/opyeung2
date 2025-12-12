@@ -3,6 +3,40 @@ import { SwipeCard } from "../components/PageTurnCardStack";
 import { fetchUserPreference } from "./supabaseUserPreferences";
 
 /**
+ * 한국 시간 기준 오늘 날짜의 시작/끝 시간을 UTC로 변환
+ * @returns { startISO: string, endISO: string } 오늘 날짜 범위 (UTC ISO 문자열)
+ */
+function getTodayDateRangeUTC(): { startISO: string; endISO: string } {
+  // 한국 시간대 (KST, UTC+9)
+  const KST_OFFSET_HOURS = 9;
+  
+  // 현재 UTC 시간
+  const nowUTC = new Date();
+  
+  // 한국 시간으로 변환
+  const nowKST = new Date(nowUTC.getTime() + (KST_OFFSET_HOURS * 60 * 60 * 1000));
+  
+  // 오늘 00:00:00 KST
+  const todayStartKST = new Date(
+    Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 0, 0, 0, 0)
+  );
+  
+  // 오늘 23:59:59.999 KST
+  const todayEndKST = new Date(
+    Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 23, 59, 59, 999)
+  );
+  
+  // KST를 UTC로 변환
+  const todayStartUTC = new Date(todayStartKST.getTime() - (KST_OFFSET_HOURS * 60 * 60 * 1000));
+  const todayEndUTC = new Date(todayEndKST.getTime() - (KST_OFFSET_HOURS * 60 * 60 * 1000));
+  
+  return {
+    startISO: todayStartUTC.toISOString(),
+    endISO: todayEndUTC.toISOString()
+  };
+}
+
+/**
  * 사용자 취향 텍스트에서 태그 추출
  * #태그 형태 또는 쉼표로 구분된 태그를 추출
  */
@@ -59,37 +93,51 @@ export const fetchCardsOptimized = async (
     }
   }
 
-  // 오늘 본 상품 ID 목록 가져오기 (하루 30개 제한)
+  // 한번이라도 본 상품 ID 목록 가져오기 (모든 시간의 swipes)
   let viewedCardIds: string[] = [];
-  let todayViewedCount = 0; // 오늘 본 상품 수
+  let todayViewedCount = 0; // 오늘 본 상품 수 (30개 제한 체크용)
   const MAX_DAILY_CARDS = 30; // 하루 최대 상품 수
   
   if (userId || deviceId) {
     try {
-      // 오늘 날짜의 시작 시간과 끝 시간 계산 (로컬 시간 기준)
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      const todayStartISO = todayStart.toISOString();
-      const todayEndISO = todayEnd.toISOString();
+      // 한국 시간 기준 오늘 날짜 범위 계산 (30개 제한 체크용)
+      const { startISO: todayStartISO, endISO: todayEndISO } = getTodayDateRangeUTC();
 
-      let query = client
+      // 1. 한번이라도 본 상품 ID 목록 가져오기 (모든 시간의 swipes)
+      let allSwipesQuery = client
+        .from("swipes")
+        .select("card_id");
+
+      if (userId) {
+        allSwipesQuery = allSwipesQuery.eq("user_id", userId);
+      } else if (deviceId) {
+        allSwipesQuery = allSwipesQuery.eq("device_id", deviceId);
+      }
+
+      const { data: allSwipes, error: allSwipesError } = await allSwipesQuery;
+
+      if (!allSwipesError && allSwipes) {
+        // 중복 제거하여 한번이라도 본 상품 ID 목록 생성
+        viewedCardIds = [...new Set(allSwipes.map((s) => String(s.card_id)))];
+      }
+
+      // 2. 오늘 본 상품 수 계산 (30개 제한 체크용)
+      let todaySwipesQuery = client
         .from("swipes")
         .select("card_id")
         .gte("created_at", todayStartISO)
         .lte("created_at", todayEndISO); // 오늘 날짜 범위 내의 swipes만
 
       if (userId) {
-        query = query.eq("user_id", userId);
+        todaySwipesQuery = todaySwipesQuery.eq("user_id", userId);
       } else if (deviceId) {
-        query = query.eq("device_id", deviceId);
+        todaySwipesQuery = todaySwipesQuery.eq("device_id", deviceId);
       }
 
-      const { data: swipes, error: swipesError } = await query;
+      const { data: todaySwipes, error: todaySwipesError } = await todaySwipesQuery;
 
-      if (!swipesError && swipes) {
-        viewedCardIds = swipes.map((s) => String(s.card_id));
-        todayViewedCount = swipes.length;
+      if (!todaySwipesError && todaySwipes) {
+        todayViewedCount = todaySwipes.length;
         
         // 오늘 30개를 다 봤다면 빈 배열 반환
         if (todayViewedCount >= MAX_DAILY_CARDS) {
@@ -192,37 +240,51 @@ async function fetchCardsFallback(
     return { data: [], error: new Error("Supabase client not configured") };
   }
 
-  // 오늘 본 상품 ID 목록 가져오기 (하루 30개 제한)
+  // 한번이라도 본 상품 ID 목록 가져오기 (모든 시간의 swipes)
   let viewedCardIds: string[] = [];
-  let todayViewedCount = 0; // 오늘 본 상품 수
+  let todayViewedCount = 0; // 오늘 본 상품 수 (30개 제한 체크용)
   const MAX_DAILY_CARDS = 30; // 하루 최대 상품 수
   
   if (userId || deviceId) {
     try {
-      // 오늘 날짜의 시작 시간과 끝 시간 계산 (로컬 시간 기준)
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      const todayStartISO = todayStart.toISOString();
-      const todayEndISO = todayEnd.toISOString();
+      // 한국 시간 기준 오늘 날짜 범위 계산 (30개 제한 체크용)
+      const { startISO: todayStartISO, endISO: todayEndISO } = getTodayDateRangeUTC();
 
-      let query = client
+      // 1. 한번이라도 본 상품 ID 목록 가져오기 (모든 시간의 swipes)
+      let allSwipesQuery = client
+        .from("swipes")
+        .select("card_id");
+
+      if (userId) {
+        allSwipesQuery = allSwipesQuery.eq("user_id", userId);
+      } else if (deviceId) {
+        allSwipesQuery = allSwipesQuery.eq("device_id", deviceId);
+      }
+
+      const { data: allSwipes, error: allSwipesError } = await allSwipesQuery;
+
+      if (!allSwipesError && allSwipes) {
+        // 중복 제거하여 한번이라도 본 상품 ID 목록 생성
+        viewedCardIds = [...new Set(allSwipes.map((s) => String(s.card_id)))];
+      }
+
+      // 2. 오늘 본 상품 수 계산 (30개 제한 체크용)
+      let todaySwipesQuery = client
         .from("swipes")
         .select("card_id")
         .gte("created_at", todayStartISO)
         .lte("created_at", todayEndISO); // 오늘 날짜 범위 내의 swipes만
 
       if (userId) {
-        query = query.eq("user_id", userId);
+        todaySwipesQuery = todaySwipesQuery.eq("user_id", userId);
       } else if (deviceId) {
-        query = query.eq("device_id", deviceId);
+        todaySwipesQuery = todaySwipesQuery.eq("device_id", deviceId);
       }
 
-      const { data: swipes, error: swipesError } = await query;
+      const { data: todaySwipes, error: todaySwipesError } = await todaySwipesQuery;
 
-      if (!swipesError && swipes) {
-        viewedCardIds = swipes.map((s) => String(s.card_id));
-        todayViewedCount = swipes.length;
+      if (!todaySwipesError && todaySwipes) {
+        todayViewedCount = todaySwipes.length;
         
         // 오늘 30개를 다 봤다면 빈 배열 반환
         if (todayViewedCount >= MAX_DAILY_CARDS) {
