@@ -226,6 +226,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
   const [isAnalyzingPreference, setIsAnalyzingPreference] = useState(false);
   const [isReanalyzingPreference, setIsReanalyzingPreference] = useState(false);
   const [isReanalysisMode, setIsReanalysisMode] = useState(false); // 재분석 모드 (랜덤 상품 5개 평가)
+  const [isReanalysisLoading, setIsReanalysisLoading] = useState(false); // 재분석 로딩 중 여부
   const [reanalysisSwipeCount, setReanalysisSwipeCount] = useState(0); // 재분석 모드에서의 스와이프 카운트
   const [viewingFromProfile, setViewingFromProfile] = useState<string | null>(null); // 프로필에서 선택한 카드 ID
   const lastDirections = useRef<Record<string, SwipeDirection>>({});
@@ -445,6 +446,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
           const groqApiKey = (import.meta as any).env?.VITE_GROQ_API_KEY;
           if (groqApiKey) {
             // 원래 취향 분석 로직과 동일하게 PreferenceAnalysisLoading 사용
+            setIsReanalysisLoading(true); // 재분석 로딩 플래그 설정
             setIsAnalyzingPreference(true);
             setIsReanalysisMode(false);
             setReanalysisSwipeCount(0);
@@ -459,6 +461,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
             .then(async ([{ preference, error }]) => {
               // 로딩 UI 숨기기
               setIsAnalyzingPreference(false);
+              setIsReanalysisLoading(false); // 재분석 로딩 플래그 해제
               
               if (!error && preference) {
                 // 재분석 완료 후 취향 기반 카드 다시 가져오기
@@ -490,6 +493,7 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
             .catch((err) => {
               console.error('Preference re-analysis error:', err);
               setIsAnalyzingPreference(false);
+              setIsReanalysisLoading(false); // 재분석 로딩 플래그 해제
               setIsReanalysisMode(false);
               setReanalysisSwipeCount(0);
             });
@@ -732,7 +736,10 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
                   />
 
       {/* Preference Analysis Loading */}
-      <PreferenceAnalysisLoading isVisible={isAnalyzingPreference} />
+      <PreferenceAnalysisLoading 
+        isVisible={isAnalyzingPreference} 
+        isReanalysis={isReanalysisLoading}
+      />
       
       {/* Preference Re-analysis Modal */}
       <PreferenceReanalysisModal 

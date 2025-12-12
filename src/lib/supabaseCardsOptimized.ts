@@ -59,13 +59,25 @@ export const fetchCardsOptimized = async (
     }
   }
 
-  // 본 상품 ID 목록 가져오기
+  // 오늘 본 상품 ID 목록 가져오기 (하루 30개 제한)
   let viewedCardIds: string[] = [];
+  let todayViewedCount = 0; // 오늘 본 상품 수
+  const MAX_DAILY_CARDS = 30; // 하루 최대 상품 수
+  
   if (userId || deviceId) {
     try {
+      // 오늘 날짜의 시작 시간과 끝 시간 계산 (로컬 시간 기준)
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const todayStartISO = todayStart.toISOString();
+      const todayEndISO = todayEnd.toISOString();
+
       let query = client
         .from("swipes")
-        .select("card_id");
+        .select("card_id")
+        .gte("created_at", todayStartISO)
+        .lte("created_at", todayEndISO); // 오늘 날짜 범위 내의 swipes만
 
       if (userId) {
         query = query.eq("user_id", userId);
@@ -77,11 +89,22 @@ export const fetchCardsOptimized = async (
 
       if (!swipesError && swipes) {
         viewedCardIds = swipes.map((s) => String(s.card_id));
+        todayViewedCount = swipes.length;
+        
+        // 오늘 30개를 다 봤다면 빈 배열 반환
+        if (todayViewedCount >= MAX_DAILY_CARDS) {
+          console.log(`[fetchCardsOptimized] Daily limit reached (${todayViewedCount}/${MAX_DAILY_CARDS}). No more cards available today.`);
+          return { data: [], error: null };
+        }
       }
     } catch (err) {
       console.warn("Failed to fetch viewed cards:", err);
     }
   }
+
+  // 남은 카드 수 계산
+  const remainingCards = MAX_DAILY_CARDS - todayViewedCount;
+  console.log(`[fetchCardsOptimized] Today viewed: ${todayViewedCount}/${MAX_DAILY_CARDS}, Remaining: ${remainingCards}`);
 
   // 사용자 취향이 있는 경우: TF-IDF 기반 PostgreSQL 함수 사용
   if (userTags.length > 0) {
@@ -117,7 +140,7 @@ export const fetchCardsOptimized = async (
       const { data, error } = await client.rpc('get_preference_based_cards', {
         p_user_tags: userTags,
         p_viewed_card_ids: viewedCardIds.length > 0 ? viewedCardIds : null,
-        p_limit: 30
+        p_limit: remainingCards // 남은 카드 수만큼만 조회
       });
 
       if (error) {
@@ -169,13 +192,25 @@ async function fetchCardsFallback(
     return { data: [], error: new Error("Supabase client not configured") };
   }
 
-  // 본 상품 ID 목록 가져오기
+  // 오늘 본 상품 ID 목록 가져오기 (하루 30개 제한)
   let viewedCardIds: string[] = [];
+  let todayViewedCount = 0; // 오늘 본 상품 수
+  const MAX_DAILY_CARDS = 30; // 하루 최대 상품 수
+  
   if (userId || deviceId) {
     try {
+      // 오늘 날짜의 시작 시간과 끝 시간 계산 (로컬 시간 기준)
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const todayStartISO = todayStart.toISOString();
+      const todayEndISO = todayEnd.toISOString();
+
       let query = client
         .from("swipes")
-        .select("card_id");
+        .select("card_id")
+        .gte("created_at", todayStartISO)
+        .lte("created_at", todayEndISO); // 오늘 날짜 범위 내의 swipes만
 
       if (userId) {
         query = query.eq("user_id", userId);
@@ -187,17 +222,28 @@ async function fetchCardsFallback(
 
       if (!swipesError && swipes) {
         viewedCardIds = swipes.map((s) => String(s.card_id));
+        todayViewedCount = swipes.length;
+        
+        // 오늘 30개를 다 봤다면 빈 배열 반환
+        if (todayViewedCount >= MAX_DAILY_CARDS) {
+          console.log(`[fetchCardsFallback] Daily limit reached (${todayViewedCount}/${MAX_DAILY_CARDS}). No more cards available today.`);
+          return { data: [], error: null };
+        }
       }
     } catch (err) {
       console.warn("Failed to fetch viewed cards:", err);
     }
   }
 
+  // 남은 카드 수 계산
+  const remainingCards = MAX_DAILY_CARDS - todayViewedCount;
+  console.log(`[fetchCardsFallback] Today viewed: ${todayViewedCount}/${MAX_DAILY_CARDS}, Remaining: ${remainingCards}`);
+
   // PostgreSQL RPC 함수를 사용하여 랜덤하게 조회
   try {
     const { data: randomCards, error: rpcError } = await client.rpc('get_random_cards', {
       p_viewed_card_ids: viewedCardIds.length > 0 ? viewedCardIds : null,
-      p_limit: 30
+      p_limit: remainingCards // 남은 카드 수만큼만 조회
     });
 
     if (!rpcError && randomCards && randomCards.length > 0) {
@@ -250,8 +296,8 @@ async function fetchCardsFallback(
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 
-  // 최대 30개로 제한
-  const data = shuffled.slice(0, 30);
+  // 남은 카드 수만큼만 제한
+  const data = shuffled.slice(0, remainingCards);
 
   const mapped: SwipeCard[] = data.map((row: any) => ({
     id: String(row.id),

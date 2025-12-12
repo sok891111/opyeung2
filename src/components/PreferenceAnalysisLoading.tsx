@@ -3,22 +3,26 @@ import React from 'react';
 
 type PreferenceAnalysisLoadingProps = {
   isVisible: boolean;
+  isReanalysis?: boolean; // 재분석 모드 여부
 };
 
-export const PreferenceAnalysisLoading: React.FC<PreferenceAnalysisLoadingProps> = ({ isVisible }) => {
+export const PreferenceAnalysisLoading: React.FC<PreferenceAnalysisLoadingProps> = ({ 
+  isVisible, 
+  isReanalysis = false 
+}) => {
   return (
     <AnimatePresence>
       {isVisible && (
         <>
-          {/* 어두운 배경 */}
+          {/* 배경 - 재분석 모드일 때는 완전히 검은색 */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] bg-black/60"
+            className={`fixed inset-0 z-[80] ${isReanalysis ? 'bg-black' : 'bg-black/60'}`}
           />
 
-          {/* 로딩 패널 */}
+          {/* 로딩 패널 - 하단에서 올라오는 애니메이션 */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
