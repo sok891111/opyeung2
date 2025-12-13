@@ -4,6 +4,7 @@ import { sampleCards } from "./data/cards";
 import { fetchCardsOptimized as fetchCards } from "./lib/supabaseCardsOptimized";
 import { useDeviceSession } from "./hooks/useDeviceSession";
 import { SplashScreen } from "./components/SplashScreen";
+import { setGTMUserId } from "./lib/gtm";
 
 function App() {
   const [cards, setCards] = useState<SwipeCard[]>(sampleCards);
@@ -13,6 +14,9 @@ function App() {
 
   useEffect(() => {
     if (!identity) return; // identity가 준비될 때까지 대기
+
+    // GTM에 사용자 ID 설정
+    setGTMUserId(identity.userId, identity.deviceId);
 
     let mounted = true;
     const load = async () => {

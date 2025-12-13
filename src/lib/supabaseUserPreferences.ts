@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseClient';
+import { getCurrentKSTISO } from './timezoneUtils';
 
 export type UserPreference = {
   id: string;
@@ -70,8 +71,8 @@ export async function saveUserPreference(
         .from('user_preferences')
         .update({
           preference_text: preferenceText,
-          analyzed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          analyzed_at: getCurrentKSTISO(),
+          updated_at: getCurrentKSTISO(),
         })
         .eq('user_id', userId);
 
@@ -82,7 +83,7 @@ export async function saveUserPreference(
         user_id: userId,
         device_id: deviceId,
         preference_text: preferenceText,
-        analyzed_at: new Date().toISOString(),
+        analyzed_at: getCurrentKSTISO(),
       });
 
       if (insertError) throw insertError;

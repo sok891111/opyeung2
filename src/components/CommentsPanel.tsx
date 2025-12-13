@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Comment } from '../types/comment';
 import { fetchCommentsWithReactions, createComment, toggleCommentReaction } from '../lib/supabaseComments';
 import { useDeviceSession } from '../hooks/useDeviceSession';
+import { formatKSTDate } from '../lib/timezoneUtils';
 
 type CommentsPanelProps = {
   cardId: string;
@@ -141,7 +142,7 @@ export const CommentsPanel: React.FC<CommentsPanelProps> = ({ cardId, isOpen, on
                           <span>{comment.nope_count}</span>
                         </button>
                         <span className="text-xs text-gray-400">
-                          {new Date(comment.created_at).toLocaleDateString('ko-KR', {
+                          {formatKSTDate(comment.created_at, {
                             month: 'short',
                             day: 'numeric',
                           })}

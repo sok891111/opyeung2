@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDeviceSession } from "../hooks/useDeviceSession";
 import { recordSwipe } from "../lib/supabaseSwipes";
 import { SwipeDirection } from "../types/swipe";
+import { trackSwipe, trackPreferenceAnalysisComplete, trackProductDetailView } from "../lib/gtm";
 import { CommentsPanel } from "./CommentsPanel";
 import { CardActionButtons } from "./CardActionButtons";
 import { ProfilePanel } from "./ProfilePanel";
@@ -125,6 +126,8 @@ const PageTurnCard: React.FC<PageTurnCardProps> = ({ card, onSwiped, onSwipeStar
     if (card.instagramUrl) {
       pressTimer.current = window.setTimeout(() => {
         longPressTriggered.current = true;
+        // GTM: 상세페이지 이동 이벤트 추적
+        trackProductDetailView(card.id, card.instagramUrl!, identity?.userId);
         window.open(card.instagramUrl, "_blank", "noopener,noreferrer");
       }, 1000); // 1초로 변경
     }
@@ -380,6 +383,9 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
         sessionId: identity.sessionId,
         deviceId: identity.deviceId
       });
+      
+      // GTM: Swipe 이벤트 추적
+      trackSwipe(direction, id, identity.userId);
 
       // 싫어요 연속 카운트 추적 (재분석 모드가 아닐 때만)
       if (!isReanalysisMode) {
@@ -464,6 +470,9 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
               setIsReanalysisLoading(false); // 재분석 로딩 플래그 해제
               
               if (!error && preference) {
+                // GTM: 재분석 완료 이벤트 추적
+                trackPreferenceAnalysisComplete(true, identity.userId);
+                
                 // 재분석 완료 후 취향 기반 카드 다시 가져오기
                 try {
                   const { data: newCards, error: fetchError } = await fetchCards(
@@ -539,6 +548,9 @@ export const PageTurnCardStack: React.FC<PageTurnCardStackProps> = ({ cards, onD
               setIsAnalyzingPreference(false);
               
               if (!error && preference) {
+                // GTM: 취향 분석 완료 이벤트 추적
+                trackPreferenceAnalysisComplete(false, identity.userId);
+                
                 // 취향 분석 완료 후 사용자 취향 기반으로 카드 다시 가져오기
                 try {
                   // 취향 분석 전에 본 카드 수 저장

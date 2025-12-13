@@ -6,6 +6,7 @@ import { fetchLikedCards } from '../lib/supabaseLikedCards';
 import { fetchUserComments } from '../lib/supabaseUserComments';
 import { fetchUserPreference } from '../lib/supabaseUserPreferences';
 import { useDeviceSession } from '../hooks/useDeviceSession';
+import { formatKSTDate } from '../lib/timezoneUtils';
 
 // 취향 텍스트를 파싱하여 연애인 섹션을 강조하는 컴포넌트
 const PreferenceTextDisplay: React.FC<{ text: string }> = ({ text }) => {
@@ -246,7 +247,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ isOpen, onClose, onC
                                 <span>{comment.nope_count}</span>
                               </div>
                               <span>
-                                {new Date(comment.created_at).toLocaleDateString('ko-KR', {
+                                {formatKSTDate(comment.created_at, {
                                   year: 'numeric',
                                   month: 'short',
                                   day: 'numeric',

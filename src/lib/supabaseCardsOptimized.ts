@@ -1,40 +1,7 @@
 import { getSupabaseClient } from "./supabaseClient";
 import { SwipeCard } from "../components/PageTurnCardStack";
 import { fetchUserPreference } from "./supabaseUserPreferences";
-
-/**
- * 한국 시간 기준 오늘 날짜의 시작/끝 시간을 UTC로 변환
- * @returns { startISO: string, endISO: string } 오늘 날짜 범위 (UTC ISO 문자열)
- */
-function getTodayDateRangeUTC(): { startISO: string; endISO: string } {
-  // 한국 시간대 (KST, UTC+9)
-  const KST_OFFSET_HOURS = 9;
-  
-  // 현재 UTC 시간
-  const nowUTC = new Date();
-  
-  // 한국 시간으로 변환
-  const nowKST = new Date(nowUTC.getTime() + (KST_OFFSET_HOURS * 60 * 60 * 1000));
-  
-  // 오늘 00:00:00 KST
-  const todayStartKST = new Date(
-    Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 0, 0, 0, 0)
-  );
-  
-  // 오늘 23:59:59.999 KST
-  const todayEndKST = new Date(
-    Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 23, 59, 59, 999)
-  );
-  
-  // KST를 UTC로 변환
-  const todayStartUTC = new Date(todayStartKST.getTime() - (KST_OFFSET_HOURS * 60 * 60 * 1000));
-  const todayEndUTC = new Date(todayEndKST.getTime() - (KST_OFFSET_HOURS * 60 * 60 * 1000));
-  
-  return {
-    startISO: todayStartUTC.toISOString(),
-    endISO: todayEndUTC.toISOString()
-  };
-}
+import { getTodayDateRangeUTC } from "./timezoneUtils";
 
 /**
  * 사용자 취향 텍스트에서 태그 추출
